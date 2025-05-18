@@ -1,0 +1,153 @@
+name: Database CI
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'infra/supabase/**'
+      - 'tests/database/**'
+      - '.github/workflows/database-ci.yml'
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - 'infra/supabase/**'
+      - 'tests/database/**'
+      - '.github/workflows/database-ci.yml'
+
+jobs:
+  test:
+    name: Test Supabase Schema and Migrations
+    runs-on: ubuntu-latest
+
+    env:
+      # Database
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+      # Supabase configuration
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Install package with test dependencies
+          pip install -e ".[test]"
+        continue-on-error: false
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Apply migrations
+        working-directory: ./infra/supabase
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: |
+          # Check if migrations directory exists
+          if [ ! -d "migrations" ]; then
+            echo "::error::Migrations directory not found"
+            exit 1
+          fi
+
+          # List all migration files
+          echo "Found migration files:"
+          ls -la migrations/
+
+          # Apply migrations in order
+          for migration in migrations/*.sql; do
+            if [ -f "$migration" ]; then
+              echo "\n=== Applying migration: $migration ==="
+              export PGPASSWORD=postgres
+              if ! psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$migration"; then
+                echo "::error::Failed to apply migration: $migration"
+                exit 1
+              fi
+              echo "=== Successfully applied: $migration ===\n"
+            fi
+          done
+
+      - name: Set up test database
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: |
+          # Create test database
+          psql -h localhost -U postgres -c "CREATE DATABASE test_db;"
+
+          # Apply migrations to test database
+          for migration in infra/supabase/migrations/*.sql; do
+            if [ -f "$migration" ]; then
+              echo "\n=== Applying migration to test_db: $migration ==="
+              psql -h localhost -U postgres -d test_db -v ON_ERROR_STOP=1 -f "$migration"
+            fi
+          done
+
+      - name: Run Supabase tests
+        working-directory: ./tests
+        env:
+          # Database connection
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: test_db
+        run: |
+          # Install test dependencies
+          pip install -e ".[test]"
+
+          # Create test database schema if needed
+          python -c "
+          import os
+          from sqlalchemy import create_engine
+
+          db_url = os.getenv('DATABASE_URL')
+          engine = create_engine(db_url)
+
+          # Create schema if it doesn't exist
+          with engine.connect() as conn:
+              conn.execute('CREATE SCHEMA IF NOT EXISTS auth;')
+              conn.execute('CREATE SCHEMA IF NOT EXISTS storage;')
+              conn.execute('CREATE SCHEMA IF NOT EXISTS realtime;')
+              conn.commit()
+          "
+
+          # Run the Supabase tests with verbose output
+          python -m pytest database/ -v --log-cli-level=INFO

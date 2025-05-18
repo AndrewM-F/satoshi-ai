@@ -1,0 +1,42 @@
+{
+  "name": "@nl/satoshi-ai",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "prepare": "husky",
+    "dev": "pnpm --prefix frontend dev",
+    "install:frontend": "pnpm --prefix frontend install",
+    "install:all": "pnpm install && pnpm install:frontend"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.0.0",
+    "prettier": "^3.5.3"
+  },
+  "lint-staged": {
+    "**/*.{js,jsx,ts,tsx,json,md,mdx,css,scss,html,yml,yaml}": [
+      "prettier --write"
+    ],
+    "**/*.py": [
+      "black"
+    ],
+    "frontend/**/*.{js,jsx,ts,tsx}": [
+      "cd frontend && pnpm validate"
+    ]
+  },
+  "prettier": {
+    "arrowParens": "avoid",
+    "bracketSameLine": false,
+    "bracketSpacing": true,
+    "endOfLine": "lf",
+    "printWidth": 120,
+    "semi": true,
+    "singleQuote": true,
+    "tabWidth": 2,
+    "trailingComma": "es5",
+    "useTabs": false
+  }
+}

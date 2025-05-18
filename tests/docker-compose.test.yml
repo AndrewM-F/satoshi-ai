@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  db:
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: satoshi_test
+    ports:
+      - '5433:5432' # Use a different port to avoid conflicts
+
+  meet-service:
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/satoshi_test
+      - PORT=8001 # Use a different port for testing
+    ports:
+      - '8001:8001'
+
+  # Add other services as needed for testing
+  api-gateway:
+    environment:
+      - ENVIRONMENT=test
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/satoshi_test
+      - MEET_SERVICE_URL=http://host.docker.internal:8001 # Use host.docker.internal to access host ports
+    ports:
+      - '8000:8000'

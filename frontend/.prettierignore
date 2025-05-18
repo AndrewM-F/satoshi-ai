@@ -1,0 +1,16 @@
+.next
+node_modules
+package.json
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.DS_Store
+*.md
+*.mdx
+*.html
+*.svg
+*.json
+*.lock
+*.log
+*.sql
+*.toml

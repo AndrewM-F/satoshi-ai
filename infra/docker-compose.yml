@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # API Gateway
+  api-gateway:
+    build: 
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/satoshi
+      - MEET_SERVICE_URL=http://meet-service:8000
+      - DISCORD_SERVICE_URL=http://discord-service:8000
+      - TWITTER_SERVICE_URL=http://twitter-service:8000
+      - AI_SERVICE_URL=http://ai-service:8000
+    depends_on:
+      - db
+      - meet-service
+      - discord-service
+      - twitter-service
+      - ai-service
+
+  # Services
+  meet-service:
+    build: 
+      context: ./backend/services/meet-service
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/satoshi
+      - PORT=8000
+    depends_on:
+      - db
+
+  discord-service:
+    build: 
+      context: ./backend/services/discord-service
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/satoshi
+      - PORT=8000
+    depends_on:
+      - db
+
+  twitter-service:
+    build: 
+      context: ./backend/services/twitter-service
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/satoshi
+      - PORT=8000
+    depends_on:
+      - db
+
+  ai-service:
+    build: 
+      context: ./backend/services/ai-service
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/satoshi
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - PORT=8000
+    depends_on:
+      - db
+      - ollama
+
+  # Infrastructure
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: satoshi
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  postgres_data:
+  ollama_data:

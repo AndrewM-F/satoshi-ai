@@ -1,0 +1,35 @@
+[global]
+  # Project ID from Supabase dashboard
+  project_id = "your-project-id"
+  
+  # API URL and anon/public key
+  api_url = "https://your-project-ref.supabase.co"
+  anon_key = "your-anon-key"
+  service_role_key = "your-service-role-key"
+
+[db]
+  # Database connection settings
+  host = "db.your-project-ref.supabase.co"
+  port = 5432
+  database = "postgres"
+  user = "postgres"
+  password = "your-db-password"
+  sslmode = "require"
+
+[storage]
+  # Storage bucket for file uploads
+  bucket_name = "satoshi-ai-storage"
+
+[auth]
+  # JWT settings
+  jwt_secret = "your-jwt-secret"
+  jwt_expires_in = 3600  # 1 hour
+
+[functions]
+  # Edge functions configuration
+  region = "us-east-1"
+
+[realtime]
+  # Realtime configuration
+  enabled = true
+  api_key = "your-realtime-api-key"

@@ -1,0 +1,100 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+      - 'pnpm-lock.yaml'
+      - 'frontend/pnpm-lock.yaml'
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+      - 'pnpm-lock.yaml'
+      - 'frontend/pnpm-lock.yaml'
+
+jobs:
+  test:
+    name: Lint, Format, Typecheck & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to check for lockfile changes
+
+      - name: Check for lockfile changes
+        id: lockfile-check
+        run: |
+          ROOT_LOCKFILE_EXISTS=false
+          FRONTEND_LOCKFILE_EXISTS=false
+
+          if [ -f "pnpm-lock.yaml" ]; then
+            ROOT_LOCKFILE_EXISTS=true
+          fi
+
+          if [ -f "frontend/pnpm-lock.yaml" ]; then
+            FRONTEND_LOCKFILE_EXISTS=true
+          fi
+
+          echo "root_lockfile_exists=$ROOT_LOCKFILE_EXISTS" >> $GITHUB_OUTPUT
+          echo "frontend_lockfile_exists=$FRONTEND_LOCKFILE_EXISTS" >> $GITHUB_OUTPUT
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-store
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: '**/pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: |
+          # Use --no-frozen-lockfile in CI to prevent lockfile errors
+          pnpm install --no-frozen-lockfile
+
+          # Install frontend dependencies using workspace
+          pnpm install -r --filter=@nl/satoshi-ai-frontend
+
+      - name: Run linter
+        working-directory: ./frontend
+        run: pnpm lint
+
+      - name: Check formatting
+        working-directory: ./frontend
+        run: pnpm format:check
+
+      - name: Type check
+        working-directory: ./frontend
+        run: pnpm type-check
+
+      - name: Build application
+        working-directory: ./frontend
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: pnpm build
